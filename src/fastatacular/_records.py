@@ -193,16 +193,20 @@ def _fields_of(parsed: _ParsedHeader) -> dict[str, Any]:
     return fields
 
 
-def _parse_description(description: str | None) -> dict[str, Any]:
+def _parse_description(description: str | None, identifier: str = "x") -> dict[str, Any]:
     from fastatacular._parser import _parse_header_line
 
-    return _fields_of(_parse_header_line(f">x {description or ''}", 0))
+    return _fields_of(_parse_header_line(f">{identifier} {description or ''}", 0))
 
 
 def _parts_of(identifier: str) -> tuple[str | None, ...]:
-    from fastatacular._parser import _split_identifier
+    from fastatacular._parser import _bare_accession, _split_identifier
 
-    return _split_identifier(identifier) or (None, None, None)
+    if parts := _split_identifier(identifier):
+        return parts
+    if bare := _bare_accession(identifier):
+        return None, bare[0], None
+    return None, None, None
 
 
 def _check_identifier(identifier: str | None, index: int) -> str:
@@ -347,7 +351,7 @@ def _edit_description(text: str, old: dict[str, Any], new: dict[str, Any], index
     out.append(text[prev:])
     out += [f" {key}={value}" for key, value in new_kv.items() if key not in done and key not in old_kv]
     edited = "".join(out).lstrip()
-    got = _parse_description(edited)
+    got = _parse_description(edited, old["identifier"])
     bad = [k for k in _DESC_FIELDS if got[k] != new[k]]
     if bad:
         raise _error(
@@ -374,7 +378,7 @@ def _edited_header(values: dict[str, Any], raw: str, index: int) -> tuple[str, s
     if "description" in changed:
         description = values["description"]
         if struct:
-            got = _parse_description(description)
+            got = _parse_description(description, old["identifier"])
             bad = [k for k in struct if got[k] != values[k]]
             if bad:
                 raise _conflict(index, "description", bad, "Edit the description or the structured columns, not both")
@@ -411,22 +415,35 @@ def _built_header(values: dict[str, Any], index: int) -> tuple[str, str | None]:
                     index,
                     "Set the identifier column and clear prefix/accession/entry_name",
                 )
-        elif _parts_of(identifier) != parts:
-            bad = [
-                k for k, a, b in zip(_ID_PARTS, parts, _parts_of(identifier), strict=True) if a is not None and a != b
-            ]
-            if bad:
-                raise _conflict(index, f"identifier {identifier!r}", bad, "Set the identifier or its parts, not both")
+        else:
+            from fastatacular._parser import _RCSB_ID
+
+            desc = values.get("description")
+            is_rcsb = desc is not None and _RCSB_ID.match(f"{identifier}|{desc}") and parts == (None, identifier, None)
+            if not is_rcsb and _parts_of(identifier) != parts:
+                bad = [
+                    k
+                    for k, a, b in zip(_ID_PARTS, parts, _parts_of(identifier), strict=True)
+                    if a is not None and a != b
+                ]
+                if bad:
+                    raise _conflict(
+                        index, f"identifier {identifier!r}", bad, "Set the identifier or its parts, not both"
+                    )
     identifier = _check_identifier(identifier, index)
 
     description = values.get("description")
     struct = [k for k in _DESC_FIELDS if values.get(k) is not None]
     if description is not None:
         if struct:
-            got = _parse_description(description)
+            got = _parse_description(description, identifier)
             bad = [k for k in struct if got[k] != values[k]]
             if bad:
                 raise _conflict(index, "description", bad, "Set the description or the structured columns, not both")
+        from fastatacular._parser import _RCSB_ID
+
+        if _RCSB_ID.match(f"{identifier}|{description}"):
+            return f">{identifier}|{description}", description
         return f">{identifier} {description}", description
     if not struct:
         return f">{identifier}", None
