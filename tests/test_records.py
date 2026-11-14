@@ -239,6 +239,8 @@ def test_from_records_without_raw_header() -> None:
         from_records([{"identifier": "x", "description": "Real desc", "gname": "ABC"}])
     with pytest.raises(FastaWriteError, match="identifier 'NP_000549.1' and accession were both set and disagree"):
         from_records([{"identifier": "NP_000549.1", "accession": "NP_111111.2", "sequence": "MKV"}])
+    with pytest.raises(FastaWriteError, match="identifier 'plain_id' and accession were both set and disagree"):
+        from_records([{"identifier": "plain_id", "accession": "some_acc"}])
 
     # Bare accessions without raw_header roundtrip to the same identifier and accession (issue #59).
     (repro,) = from_records([{"identifier": "NP_000549.1", "sequence": "MKV", "accession": "NP_000549.1"}])
