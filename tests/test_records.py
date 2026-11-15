@@ -204,10 +204,42 @@ def _edit(header: str, **changes: object) -> str:
         ("sp|P1|A Poly OS=Virus 1  OX=0000", {"pname": "New", "pe": 1.0}, "sp|P1|A New OS=Virus 1  OX=0000 PE=1"),
         ("x Name XX=1 OS=H OX=9606", {"extra": "XX=2 YY=3"}, "x Name XX=2 OS=H OX=9606 YY=3"),
         ("sp|P1|A X OS=H OS=M", {"os_name": ""}, "sp|P1|A X"),
+        (
+            "NP_000549.1 hemoglobin subunit beta [Homo sapiens]",
+            {"prefix": "DECOY"},
+            "DECOY|NP_000549.1 hemoglobin subunit beta [Homo sapiens]",
+        ),
+        (
+            "UniRef90_P69905 Hemoglobin subunit alpha n=2 Tax=Homo sapiens TaxID=9606",
+            {"prefix": "DECOY"},
+            "DECOY|UniRef90_P69905 Hemoglobin subunit alpha n=2 Tax=Homo sapiens TaxID=9606",
+        ),
+        (
+            "ENSP00000322421.5 pep gene_symbol:HBB",
+            {"prefix": "DECOY"},
+            "DECOY|ENSP00000322421.5 pep gene_symbol:HBB",
+        ),
     ],
 )
 def test_from_records_edits_only_the_changed_token(header: str, changes: dict[str, object], expected: str) -> None:
     assert _edit(header, **changes) == expected
+
+
+def test_from_records_bare_accession_prefix_edit() -> None:
+    """Setting prefix on an NCBI, UniRef, or Ensembl entry with raw_header builds db|ACC."""
+    for header in (
+        "NP_000549.1 hemoglobin subunit beta [Homo sapiens]",
+        "UniRef90_P69905 Hemoglobin subunit alpha n=2 Tax=Homo sapiens TaxID=9606",
+        "ENSP00000322421.5 pep gene_symbol:HBB",
+    ):
+        [entry] = read_fasta(io.StringIO(f">{header}\nMKV\n"))
+        rec = entry.to_record()
+        rec["prefix"] = "DECOY"
+        [out] = from_records([rec])
+        assert out.identifier == f"DECOY|{entry.accession}"
+        assert out.prefix == "DECOY"
+        assert out.accession == entry.accession
+        assert out.raw_header == f"DECOY|{header}"
 
 
 @pytest.mark.parametrize(

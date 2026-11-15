@@ -232,12 +232,20 @@ def _substitute_parts(identifier: str, want: tuple[str | None, ...]) -> str | No
     and the layout stay: ``gi|N|ref|ACC|`` keeps ``gi|N|ref|``, ``pdb|1MBA|A`` takes an
     accession ``ENTRY_CHAIN`` back apart. ``None`` if ``want`` cannot be written in this style.
     """
-    from fastatacular._parser import _EMPTY_MIDDLE_DBS, _EMPTY_MIDDLE_ID, _GI_ID, _PDB_ID, _PIPE_ID, _UNIPROT_ID
+    from fastatacular._parser import (
+        _EMPTY_MIDDLE_DBS,
+        _EMPTY_MIDDLE_ID,
+        _GI_ID,
+        _PDB_ID,
+        _PIPE_ID,
+        _UNIPROT_ID,
+        _split_identifier,
+    )
 
     prefix, accession, name = want
     if prefix is None or accession is None:
         return None
-    if _parts_of(identifier) == (None, None, None):  # plain id: build db|ACC[|NAME]
+    if _split_identifier(identifier) is None:  # plain id or bare accession: build db|ACC[|NAME]
         return "|".join(p for p in want if p is not None)
     edits: list[tuple[int, int, str]] = []
 
